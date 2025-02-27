@@ -99,7 +99,7 @@ ray start --address=[RAY_ADDRESS]
 3. Finally, on the head node, run the training script:
 ```bash
 # Run 16K or 24K context length training
-./scripts/train/run_deepscaler_1.5b_[16k|24k].sh --model [CHECKPOINT_PATH] --nodes [NUMBER_NODES]
+./scripts/train/run_deepscaler_1.5b_[16k|24k].sh --model [CHECKPOINT_PATH] --nnodes [NUMBER_NODES] --project_name my_project --experiment_name my_experiment
 ```
 We welcome the community to try out different models, context legnths, and RL parameters in the training scripts!
 
