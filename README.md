@@ -47,6 +47,10 @@ DeepScaleR is an open-source project to fully democratize reinforcement learning
 ```bash
 # Recommend Python 3.10.
 cd deepscaler
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install wheel setuptools
 pip install -e ./verl
 pip install -e .
 ```
@@ -95,7 +99,7 @@ ray start --address=[RAY_ADDRESS]
 3. Finally, on the head node, run the training script:
 ```bash
 # Run 16K or 24K context length training
-./scripts/train/run_deepscaler_1.5b_[16k|24k].sh --model [CHECKPOINT_PATH]
+./scripts/train/run_deepscaler_1.5b_[16k|24k].sh --model [CHECKPOINT_PATH] --nodes [NUMBER_NODES]
 ```
 We welcome the community to try out different models, context legnths, and RL parameters in the training scripts!
 
