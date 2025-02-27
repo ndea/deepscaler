@@ -53,6 +53,8 @@ pip install --upgrade pip
 pip install wheel setuptools
 pip install -e ./verl
 pip install -e .
+pip install wandb
+export WANDB_API_KEY=[WANDB_API_KEY]
 ```
 
 ### Data
