@@ -1,10 +1,8 @@
 #!/bin/bash
 set -x
-
 # Warning: Export VLLM_ATTENTION_BACKEND on every machine before starting Ray cluster.
 # vLLM without XFORMERS will results in CUDA errors.
 export VLLM_ATTENTION_BACKEND=XFORMERS
-
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -12,18 +10,42 @@ while [[ $# -gt 0 ]]; do
             MODEL_PATH="$2"
             shift 2
             ;;
+        --nnodes)
+            NNODES="$2"
+            shift 2
+            ;;
+        --project_name)
+            PROJECT_NAME="$2"
+            shift 2
+            ;;
+        --experiment_name)
+            EXPERIMENT_NAME="$2"
+            shift 2
+            ;;
         *)
             break
             ;;
     esac
 done
-
 # Check if model path is provided
 if [ -z "$MODEL_PATH" ]; then
     MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 fi
+# Check if number of nodes is provided
+if [ -z "$NNODES" ]; then
+    NNODES=2
+fi
 
-# Train over 4 nodes, 8 A100-80GB GPUs per node.
+# Check if project name is provided
+if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME="ndea_deepscaler"
+fi
+
+# Check if experiment name is provided
+if [ -z "$EXPERIMENT_NAME" ]; then
+    EXPERIMENT_NAME="1.5b-24k-grpo"
+fi
+# Train with specified number of nodes, 8 A100-80GB GPUs per node.
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$HOME/deepscaler/data/train.parquet \
@@ -58,11 +80,11 @@ python3 -m verl.trainer.main_ppo \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
-    trainer.project_name='deepscaler' \
-    trainer.experiment_name='1.5b-24k-grpo' \
+    trainer.project_name=$PROJECT_NAME \
+    trainer.experiment_name=$EXPERIMENT_NAME \
     +trainer.val_before_train=True \
     trainer.n_gpus_per_node=8 \
-    trainer.nnodes=4 \
+    trainer.nnodes=$NNODES \
     trainer.save_freq=10 \
     trainer.test_freq=10 \
     trainer.default_hdfs_dir=null \
