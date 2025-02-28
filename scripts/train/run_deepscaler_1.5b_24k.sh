@@ -22,6 +22,10 @@ while [[ $# -gt 0 ]]; do
             EXPERIMENT_NAME="$2"
             shift 2
             ;;
+        --dtype)
+            MODEL_DTYPE="$2"
+            shift 2
+            ;;
         *)
             break
             ;;
@@ -35,16 +39,19 @@ fi
 if [ -z "$NNODES" ]; then
     NNODES=2
 fi
-
 # Check if project name is provided
 if [ -z "$PROJECT_NAME" ]; then
     PROJECT_NAME="ndea_deepscaler"
 fi
-
 # Check if experiment name is provided
 if [ -z "$EXPERIMENT_NAME" ]; then
     EXPERIMENT_NAME="1.5b-24k-grpo"
 fi
+# Set default dtype if not provided (bf16 is generally recommended for A100s)
+if [ -z "$MODEL_DTYPE" ]; then
+    MODEL_DTYPE="bf16"
+fi
+
 # Train with specified number of nodes, 8 A100-80GB GPUs per node.
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -55,6 +62,7 @@ python3 -m verl.trainer.main_ppo \
     data.max_prompt_length=1024 \
     data.max_response_length=24576 \
     actor_rollout_ref.model.path=$MODEL_PATH \
+    actor_rollout_ref.model.torch_dtype=$MODEL_DTYPE \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
