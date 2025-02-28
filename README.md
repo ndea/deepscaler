@@ -46,6 +46,7 @@ DeepScaleR is an open-source project to fully democratize reinforcement learning
 ### Installation
 ```bash
 # Recommend Python 3.10.
+git clone https://github.com/ndea/deepscaler.git
 cd deepscaler
 python3 -m venv venv
 source venv/bin/activate
