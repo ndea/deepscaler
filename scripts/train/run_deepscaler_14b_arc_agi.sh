@@ -166,4 +166,4 @@ python3 -m verl.trainer.main_ppo \
     trainer.test_freq=5 \
     trainer.default_hdfs_dir=$CHECKPOINT_DIR \
     trainer.total_epochs=30 \
-    trainer.dtype=bf16 "${@:1}"
+    +actor_rollout_ref.model.torch_dtype=bf16 "${@:1}"
