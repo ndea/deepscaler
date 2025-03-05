@@ -24,6 +24,22 @@ while [[ $# -gt 0 ]]; do
             TP_SIZE="$2"
             shift 2
             ;;
+        --rollouts)
+            ROLLOUTS="$2"
+            shift 2
+            ;;
+        --val_rollouts)
+            VAL_ROLLOUTS="$2"
+            shift 2
+            ;;
+        --gpu_mem_util)
+            GPU_MEM_UTIL="$2"
+            shift 2
+            ;;
+        --batch_size)
+            OVERRIDE_BATCH_SIZE="$2"
+            shift 2
+            ;;
         --correct_ids_path)
             CORRECT_IDS_PATH="$2"
             shift 2
@@ -74,6 +90,30 @@ if [ -z "$TP_SIZE" ]; then
     TP_SIZE=4  # Good default for 14B models
 fi
 
+# Set default number of rollouts
+# For TP_SIZE=4 with 2 nodes (16 GPUs), we can do 4 model instances with 4 GPUs each
+# So each model instance can generate these many rollouts in parallel
+if [ -z "$ROLLOUTS" ]; then
+    # Default rollouts based on TP size to optimize throughput
+    if [ $TP_SIZE -eq 8 ]; then
+        ROLLOUTS=4  # With 8-way TP, we have fewer model instances
+    elif [ $TP_SIZE -eq 4 ]; then
+        ROLLOUTS=8  # With 4-way TP, we have a good balance
+    else
+        ROLLOUTS=16  # With lower TP, we can do more rollouts
+    fi
+fi
+
+# Set default validation rollouts (usually same as training rollouts)
+if [ -z "$VAL_ROLLOUTS" ]; then
+    VAL_ROLLOUTS=$ROLLOUTS
+fi
+
+# Set default GPU memory utilization (0.85 is a safe default for most setups)
+if [ -z "$GPU_MEM_UTIL" ]; then
+    GPU_MEM_UTIL=0.85
+fi
+
 # Set default project name
 if [ -z "$PROJECT_NAME" ]; then
     PROJECT_NAME="deepscaler"
@@ -81,7 +121,7 @@ fi
 
 # Set default experiment name
 if [ -z "$EXPERIMENT_NAME" ]; then
-    EXPERIMENT_NAME="deepscaler-14b-arc-agi-${RESPONSE_LENGTH}"
+    EXPERIMENT_NAME="deepscaler-14b-arc-agi-${RESPONSE_LENGTH}-tp${TP_SIZE}"
 fi
 
 # Configure S3 URI if provided
@@ -108,7 +148,12 @@ fi
 
 # Calculate optimal PPO batch sizes based on context length
 # These values might need adjustment based on your specific model and hardware
-if [ $RESPONSE_LENGTH -gt 16384 ]; then
+if [ ! -z "$OVERRIDE_BATCH_SIZE" ]; then
+    echo "Using overridden batch size: $OVERRIDE_BATCH_SIZE"
+    TRAIN_BATCH_SIZE=$OVERRIDE_BATCH_SIZE
+    VAL_BATCH_SIZE=$((OVERRIDE_BATCH_SIZE * 2))
+    PPO_MINI_BATCH_SIZE=$((OVERRIDE_BATCH_SIZE / 2))
+elif [ $RESPONSE_LENGTH -gt 16384 ]; then
     TRAIN_BATCH_SIZE=64  # Smaller batch for very long contexts
     VAL_BATCH_SIZE=128
     PPO_MINI_BATCH_SIZE=32
@@ -121,6 +166,25 @@ else
     VAL_BATCH_SIZE=256
     PPO_MINI_BATCH_SIZE=64
 fi
+
+# Ensure mini batch size is at least 1
+if [ $PPO_MINI_BATCH_SIZE -lt 1 ]; then
+    PPO_MINI_BATCH_SIZE=1
+fi
+
+echo "Configuration summary:"
+echo "Model: $MODEL_PATH"
+echo "Nodes: $NNODES"
+echo "Response length: $RESPONSE_LENGTH"
+echo "Tensor parallel size: $TP_SIZE"
+echo "Rollouts: $ROLLOUTS"
+echo "Validation rollouts: $VAL_ROLLOUTS"
+echo "GPU memory utilization: $GPU_MEM_UTIL"
+echo "Training batch size: $TRAIN_BATCH_SIZE"
+echo "Validation batch size: $VAL_BATCH_SIZE"
+echo "PPO mini batch size: $PPO_MINI_BATCH_SIZE"
+echo "Experiment name: $EXPERIMENT_NAME"
+echo "Project name: $PROJECT_NAME"
 
 # Train over specified nodes, 8 H100 GPUs per node
 python3 -m verl.trainer.main_ppo \
@@ -150,9 +214,9 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.temperature=0.6 \
     actor_rollout_ref.rollout.val_temperature=0.6 \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.85 \
-    actor_rollout_ref.rollout.n=8 \
-    actor_rollout_ref.rollout.n_val=8 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=$GPU_MEM_UTIL \
+    actor_rollout_ref.rollout.n=$ROLLOUTS \
+    actor_rollout_ref.rollout.n_val=$VAL_ROLLOUTS \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
